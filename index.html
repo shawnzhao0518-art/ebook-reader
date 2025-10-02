@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>Web 图书阅读器</title>
+  <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+    }
+    #toolbar {
+      padding: 10px;
+      background: #333;
+      color: white;
+    }
+    #reader {
+      height: calc(100vh - 50px);
+      overflow: hidden;
+    }
+    /* 悬浮按钮 */
+    #floating-btn {
+      position: fixed; bottom: 20px; right: 20px;
+      width: 50px; height: 50px; border-radius: 50%;
+      background: #333; color: #fff; font-size: 24px;
+      display:flex; align-items:center; justify-content:center;
+      cursor: move; z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    /* 设置面板 */
+    #settings-panel {
+      position: fixed; bottom: 80px; right: 20px;
+      background: #fff; border: 1px solid #ccc; padding: 12px;
+      border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      display: none; z-index: 999;
+    }
+    #settings-panel label { display:block; margin: 8px 0; }
+    #settings-panel input[type=range] { width: 100px; }
+  </style>
+</head>
+<body>
+  <!-- 工具栏 -->
+  <div id="toolbar">
+    上传 EPUB 文件: <input type="file" id="upload" accept=".epub">
+  </div>
+
+  <!-- 阅读区域 -->
+  <div id="reader"></div>
+
+  <!-- 悬浮按钮 -->
+  <div id="floating-btn">⚙️</div>
+
+  <!-- 设置面板 -->
+  <div id="settings-panel">
+    <label>亮度 <input type="range" min="50" max="100" value="100" id="brightness"></label>
+    <label>字体大小 
+      <button onclick="changeFontSize(1)">+</button>
+      <button onclick="changeFontSize(-1)">-</button>
+    </label>
+    <label>背景模式 
+      <select id="theme">
+        <option value="light">白天</option>
+        <option value="dark">夜间</option>
+        <option value="sepia">护眼</option>
+      </select>
+    </label>
+    <label>行距 
+      <select id="lineHeight">
+        <option value="1.4">小</option>
+        <option value="1.6" selected>中</option>
+        <option value="2">大</option>
+      </select>
+    </label>
+  </div>
+
+  <script>
+    let book, rendition;
+
+    // 上传并加载 EPUB
+    document.getElementById("upload").addEventListener("change", function() {
+      const file = this.files[0];
+      if (file) {
+        const url = URL.createObjectURL(file);
+        book = ePub(url);
+        rendition = book.renderTo("reader", {
+          width: "100%",
+          height: "100%"
+        });
+        rendition.display();
+        applySettings(); // 应用用户设置
+      }
+    });
+
+    // 悬浮按钮点击 → 切换设置面板
+    const btn = document.getElementById("floating-btn");
+    const panel = document.getElementById("settings-panel");
+    btn.onclick = ()=> panel.style.display = (panel.style.display==='none'?'block':'none');
+
+    // 悬浮按钮拖动
+    let isDragging = false, offsetX, offsetY;
+    btn.onmousedown = e => { isDragging = true; offsetX = e.offsetX; offsetY = e.offsetY; }
+    document.onmousemove = e => { 
+      if(isDragging){
+        btn.style.left = (e.pageX-offsetX)+"px";
+        btn.style.top = (e.pageY-offsetY)+"px";
+        btn.style.bottom = ""; btn.style.right = "";
+      }
+    }
+    document.onmouseup = ()=> isDragging=false;
+
+    // 设置：亮度
+    document.getElementById("brightness").oninput = function(){
+      document.body.style.filter = `brightness(${this.value}%)`;
+      saveSetting("brightness", this.value);
+    }
+
+    // 设置：字体大小
+    function changeFontSize(delta){ 
+      if(rendition){
+        let size = parseInt(localStorage.getItem("fontSize")||"16");
+        size = Math.max(12, size+delta);
+        rendition.themes.fontSize(size+"px");
+        saveSetting("fontSize", size);
+      }
+    }
+
+    // 设置：背景模式
+    document.getElementById("theme").onchange=function(){
+      if(rendition){
+        let theme=this.value;
+        if(theme==="dark"){
+          rendition.themes.override("color", "#eee");
+          rendition.themes.override("background", "#111");
+        } else if(theme==="sepia"){
+          rendition.themes.override("color", "#333");
+          rendition.themes.override("background", "#f4ecd8");
+        } else {
+          rendition.themes.override("color", "#000");
+          rendition.themes.override("background", "#fff");
+        }
+        saveSetting("theme", theme);
+      }
+    }
+
+    // 设置：行距
+    document.getElementById("lineHeight").onchange=function(){
+      if(rendition){
+        rendition.themes.override("line-height", this.value);
+        saveSetting("lineHeight", this.value);
+      }
+    }
+
+    // 保存设置
+    function saveSetting(key, value){
+      localStorage.setItem(key, value);
+    }
+
+    // 应用设置
+    function applySettings(){
+      const brightness = localStorage.getItem("brightness")||100;
+      document.body.style.filter = `brightness(${brightness}%)`;
+      document.getElementById("brightness").value = brightness;
+
+      const fontSize = localStorage.getItem("fontSize")||16;
+      rendition.themes.fontSize(fontSize+"px");
+
+      const theme = localStorage.getItem("theme")||"light";
+      document.getElementById("theme").value = theme;
+      if(theme==="dark"){
+        rendition.themes.override("color", "#eee");
+        rendition.themes.override("background", "#111");
+      } else if(theme==="sepia"){
+        rendition.themes.override("color", "#333");
+        rendition.themes.override("background", "#f4ecd8");
+      } else {
+        rendition.themes.override("color", "#000");
+        rendition.themes.override("background", "#fff");
+      }
+
+      const lineHeight = localStorage.getItem("lineHeight")||"1.6";
+      document.getElementById("lineHeight").value=lineHeight;
+      rendition.themes.override("line-height", lineHeight);
+    }
+  </script>
+</body>
+</html>
