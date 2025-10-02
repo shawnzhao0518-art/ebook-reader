@@ -2,23 +2,40 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8">
-  <title>Web 图书阅读器</title>
+  <title>沉浸式阅读器</title>
   <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
   <style>
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f4f4f4;
-    }
-    #toolbar {
-      padding: 10px;
-      background: #333;
-      color: white;
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      background: #f9f9f9;
+      color: #333;
     }
     #reader {
-      height: calc(100vh - 50px);
-      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #666;
     }
+    .hidden { display: none; }
+
+    /* 上传提示 */
+    #upload-area {
+      text-align: center;
+    }
+    #upload-btn {
+      background: #007aff;
+      color: white;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #upload-btn:hover { background: #005ecb; }
+
     /* 悬浮按钮 */
     #floating-btn {
       position: fixed; bottom: 20px; right: 20px;
@@ -28,35 +45,58 @@
       cursor: move; z-index: 1000;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     }
+
     /* 设置面板 */
     #settings-panel {
       position: fixed; bottom: 80px; right: 20px;
-      background: #fff; border: 1px solid #ccc; padding: 12px;
-      border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      display: none; z-index: 999;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid #ccc; padding: 15px;
+      border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      display: none; z-index: 999; width: 220px;
     }
-    #settings-panel label { display:block; margin: 8px 0; }
-    #settings-panel input[type=range] { width: 100px; }
+    #settings-panel h4 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 6px;
+      color: #444;
+    }
+    #settings-panel label, #settings-panel button, #settings-panel select {
+      margin: 8px 0;
+      font-size: 14px;
+      display: block;
+      width: 100%;
+    }
+    #settings-panel button {
+      background: #007aff; color: white; border: none;
+      padding: 8px; border-radius: 6px;
+      cursor: pointer;
+    }
+    #settings-panel button:hover { background: #005ecb; }
+    #settings-panel input[type=range] { width: 100%; }
   </style>
 </head>
 <body>
-  <!-- 工具栏 -->
-  <div id="toolbar">
-    上传 EPUB 文件: <input type="file" id="upload" accept=".epub">
-  </div>
-
   <!-- 阅读区域 -->
-  <div id="reader"></div>
+  <div id="reader">
+    <div id="upload-area">
+      <h2>📖 欢迎使用沉浸式阅读器</h2>
+      <p>请选择一本 EPUB 文件开始阅读</p>
+      <input type="file" id="upload" accept=".epub" hidden>
+      <button id="upload-btn">上传图书</button>
+    </div>
+  </div>
 
   <!-- 悬浮按钮 -->
   <div id="floating-btn">⚙️</div>
 
   <!-- 设置面板 -->
   <div id="settings-panel">
+    <h4>阅读设置</h4>
     <label>亮度 <input type="range" min="50" max="100" value="100" id="brightness"></label>
     <label>字体大小 
-      <button onclick="changeFontSize(1)">+</button>
-      <button onclick="changeFontSize(-1)">-</button>
+      <button onclick="changeFontSize(1)">A+</button>
+      <button onclick="changeFontSize(-1)">A-</button>
     </label>
     <label>背景模式 
       <select id="theme">
@@ -72,25 +112,57 @@
         <option value="2">大</option>
       </select>
     </label>
+    <h4>图书管理</h4>
+    <button id="changeBook">更换图书</button>
+    <button id="deleteBook" style="background:#d9534f;">删除图书</button>
   </div>
 
   <script>
     let book, rendition;
 
+    const reader = document.getElementById("reader");
+    const upload = document.getElementById("upload");
+    const uploadBtn = document.getElementById("upload-btn");
+    const uploadArea = document.getElementById("upload-area");
+
+    // 上传按钮 → 打开文件选择
+    uploadBtn.onclick = ()=> upload.click();
+
     // 上传并加载 EPUB
-    document.getElementById("upload").addEventListener("change", function() {
+    upload.addEventListener("change", function() {
       const file = this.files[0];
       if (file) {
         const url = URL.createObjectURL(file);
-        book = ePub(url);
-        rendition = book.renderTo("reader", {
-          width: "100%",
-          height: "100%"
-        });
-        rendition.display();
-        applySettings(); // 应用用户设置
+        loadBook(url);
       }
     });
+
+    // 加载书籍函数
+    function loadBook(url){
+      uploadArea.classList.add("hidden");
+      book = ePub(url);
+      rendition = book.renderTo("reader", {
+        width: "100%",
+        height: "100%"
+      });
+      rendition.display();
+      applySettings();
+    }
+
+    // 删除书籍
+    document.getElementById("deleteBook").onclick = ()=>{
+      reader.innerHTML = `
+        <div id="upload-area">
+          <h2>📖 欢迎使用沉浸式阅读器</h2>
+          <p>请选择一本 EPUB 文件开始阅读</p>
+          <input type="file" id="upload" accept=".epub" hidden>
+          <button id="upload-btn">上传图书</button>
+        </div>`;
+      location.reload(); // 简单处理：刷新回到初始
+    };
+
+    // 更换书籍
+    document.getElementById("changeBook").onclick = ()=> upload.click();
 
     // 悬浮按钮点击 → 切换设置面板
     const btn = document.getElementById("floating-btn");
@@ -158,6 +230,7 @@
 
     // 应用设置
     function applySettings(){
+      if(!rendition) return;
       const brightness = localStorage.getItem("brightness")||100;
       document.body.style.filter = `brightness(${brightness}%)`;
       document.getElementById("brightness").value = brightness;
