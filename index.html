@@ -74,6 +74,16 @@
     }
     #settings-panel button:hover { background: #005ecb; }
     #settings-panel input[type=range] { width: 100%; }
+
+    /* 加载提示 */
+    #loading { text-align:center; margin-top:20%; }
+    #progress-container {
+      width:60%; margin:auto; background:#eee; border-radius:8px; overflow:hidden;
+    }
+    #progress-bar {
+      width:0%; height:12px; background:#007aff;
+      transition: width 0.3s ease;
+    }
   </style>
 </head>
 <body>
@@ -84,6 +94,14 @@
       <p>请选择一本 EPUB 文件开始阅读</p>
       <input type="file" id="upload" accept=".epub" hidden>
       <button id="upload-btn">上传图书</button>
+    </div>
+    <!-- 加载提示 -->
+    <div id="loading" style="display:none;">
+      <h3 id="loading-text">⏳ 图书加载中… 0%</h3>
+      <div id="progress-container">
+        <div id="progress-bar"></div>
+      </div>
+      <button id="cancel-btn" style="margin-top:15px;background:#d9534f;color:white;padding:6px 12px;border:none;border-radius:6px;cursor:pointer;">取消加载</button>
     </div>
   </div>
 
@@ -118,12 +136,15 @@
   </div>
 
   <script>
-    let book, rendition;
+    let book, rendition, cancelLoad = false;
 
     const reader = document.getElementById("reader");
     const upload = document.getElementById("upload");
     const uploadBtn = document.getElementById("upload-btn");
     const uploadArea = document.getElementById("upload-area");
+    const loading = document.getElementById("loading");
+    const loadingText = document.getElementById("loading-text");
+    const progressBar = document.getElementById("progress-bar");
 
     // 上传按钮 → 打开文件选择
     uploadBtn.onclick = ()=> upload.click();
@@ -140,29 +161,56 @@
     // 加载书籍函数
     function loadBook(url){
       uploadArea.classList.add("hidden");
+      loading.style.display = "block";
+      cancelLoad = false;
+
       book = ePub(url);
       rendition = book.renderTo("reader", {
         width: "100%",
         height: "100%"
       });
-      rendition.display();
-      applySettings();
+
+      let totalChapters = 0;
+      let loadedChapters = 0;
+
+      book.ready.then(() => {
+        totalChapters = book.spine.spineItems.length;
+
+        book.spine.spineItems.forEach(item => {
+          item.load(book.load.bind(book)).then(() => {
+            if(cancelLoad) return;
+            loadedChapters++;
+            let percent = Math.floor((loadedChapters / totalChapters) * 100);
+            loadingText.innerHTML = `⏳ 图书加载中… ${percent}%`;
+            progressBar.style.width = percent + "%";
+
+            if(loadedChapters === totalChapters){
+              rendition.display().then(()=>{
+                loading.style.display = "none";
+                applySettings();
+              });
+            }
+          }).catch(err=>{
+            loadingText.innerHTML = "❌ 加载失败，请检查文件";
+            console.error("章节加载错误:", err);
+          });
+        });
+      });
     }
 
     // 删除书籍
     document.getElementById("deleteBook").onclick = ()=>{
-      reader.innerHTML = `
-        <div id="upload-area">
-          <h2>📖 欢迎使用沉浸式阅读器</h2>
-          <p>请选择一本 EPUB 文件开始阅读</p>
-          <input type="file" id="upload" accept=".epub" hidden>
-          <button id="upload-btn">上传图书</button>
-        </div>`;
-      location.reload(); // 简单处理：刷新回到初始
+      location.reload();
     };
 
     // 更换书籍
     document.getElementById("changeBook").onclick = ()=> upload.click();
+
+    // 取消加载
+    document.getElementById("cancel-btn").onclick = ()=>{
+      cancelLoad = true;
+      location.reload();
+    };
 
     // 悬浮按钮点击 → 切换设置面板
     const btn = document.getElementById("floating-btn");
