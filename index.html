@@ -2,288 +2,127 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8">
-  <title>沉浸式阅读器</title>
-  <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+  <title>沉浸式翻译网站</title>
   <style>
-    body {
-      margin: 0;
-      font-family: "Helvetica Neue", Arial, sans-serif;
-      background: #f9f9f9;
-      color: #333;
-    }
-    #reader {
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      color: #666;
-    }
-    .hidden { display: none; }
-
-    /* 上传提示 */
-    #upload-area { text-align: center; }
-    #upload-btn {
-      background: #007aff;
-      color: white;
-      padding: 12px 20px;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    #upload-btn:hover { background: #005ecb; }
-
-    /* 悬浮按钮 */
-    #floating-btn {
-      position: fixed; bottom: 20px; right: 20px;
-      width: 50px; height: 50px; border-radius: 50%;
-      background: #333; color: #fff; font-size: 24px;
-      display:flex; align-items:center; justify-content:center;
-      cursor: move; z-index: 1000;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-
-    /* 设置面板 */
-    #settings-panel {
-      position: fixed; bottom: 80px; right: 20px;
-      background: rgba(255,255,255,0.95);
-      border: 1px solid #ccc; padding: 15px;
-      border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      display: none; z-index: 999; width: 220px;
-    }
-    #settings-panel h4 {
-      margin: 0 0 10px;
-      font-size: 16px;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 6px;
-      color: #444;
-    }
-    #settings-panel label, #settings-panel button, #settings-panel select {
-      margin: 8px 0;
-      font-size: 14px;
-      display: block;
-      width: 100%;
-    }
-    #settings-panel button {
-      background: #007aff; color: white; border: none;
-      padding: 8px; border-radius: 6px;
-      cursor: pointer;
-    }
-    #settings-panel button:hover { background: #005ecb; }
-    #settings-panel input[type=range] { width: 100%; }
-
-    /* 加载提示 */
-    #loading { text-align:center; margin-top:20%; }
+    body { font-family: sans-serif; max-width: 900px; margin: auto; padding: 20px; background: #f9f9f9; }
+    h2 { color: #007aff; }
+    textarea { width: 100%; height: 150px; margin-top: 10px; }
+    input[type=file] { margin: 15px 0; }
+    button { margin-top: 10px; padding: 10px 20px; background: #007aff; color: white; border: none; cursor: pointer; }
+    .block { margin-bottom: 20px; padding: 12px; background: #fff; border-radius: 6px; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
+    .orig { font-weight: bold; margin-bottom: 5px; }
+    .trans { color: #007700; margin-top: 5px; }
   </style>
 </head>
 <body>
-  <!-- 阅读区域 -->
-  <div id="reader">
-    <div id="upload-area">
-      <h2>📖 欢迎使用沉浸式阅读器</h2>
-      <p>请选择一本 EPUB 文件开始阅读</p>
-      <input type="file" id="upload" accept=".epub" hidden>
-      <button id="upload-btn">上传图书</button>
-    </div>
-    <!-- 加载提示 -->
-    <div id="loading" style="display:none;">
-      <h3 id="loading-text">⏳ 图书加载中…</h3>
-    </div>
-  </div>
+  <h2>🌏 沉浸式翻译工具</h2>
+  <p>输入文本或上传文件（TXT / PDF / Word / EPUB）：</p>
+  <textarea id="inputText" placeholder="在这里粘贴文本..."></textarea>
+  <br>
+  <input type="file" id="fileInput" accept=".txt,.pdf,.docx,.epub">
+  <br>
+  <button onclick="startTranslation()">开始翻译</button>
 
-  <!-- 悬浮按钮 -->
-  <div id="floating-btn">⚙️</div>
+  <div id="output"></div>
 
-  <!-- 设置面板 -->
-  <div id="settings-panel">
-    <h4>阅读设置</h4>
-    <label>亮度 <input type="range" min="50" max="100" value="100" id="brightness"></label>
-    <label>字体大小 
-      <button onclick="changeFontSize(1)">A+</button>
-      <button onclick="changeFontSize(-1)">A-</button>
-    </label>
-    <label>背景模式 
-      <select id="theme">
-        <option value="light">白天</option>
-        <option value="dark">夜间</option>
-        <option value="sepia">护眼</option>
-      </select>
-    </label>
-    <label>行距 
-      <select id="lineHeight">
-        <option value="1.4">小</option>
-        <option value="1.6" selected>中</option>
-        <option value="2">大</option>
-      </select>
-    </label>
-    <h4>图书管理</h4>
-    <button id="changeBook">更换图书</button>
-    <button id="deleteBook" style="background:#d9534f;">删除图书</button>
-  </div>
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+  <!-- Mammoth.js for Word -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+  <!-- epub.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/epub.js/0.3.88/epub.min.js"></script>
 
   <script>
-    let book, rendition;
+    // 🔹 调用免费翻译 API (LibreTranslate)
+    async function translateParagraph(paragraph) {
+      let res = await fetch("https://libretranslate.com/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          q: paragraph,
+          source: "en",
+          target: "zh",
+          format: "text"
+        })
+      });
+      let data = await res.json();
+      return data.translatedText || "(翻译失败)";
+    }
 
-    const reader = document.getElementById("reader");
-    const upload = document.getElementById("upload");
-    const uploadBtn = document.getElementById("upload-btn");
-    const uploadArea = document.getElementById("upload-area");
-    const loading = document.getElementById("loading");
-    const loadingText = document.getElementById("loading-text");
+    // 🔹 执行翻译
+    async function startTranslation() {
+      let text = document.getElementById("inputText").value;
+      let file = document.getElementById("fileInput").files[0];
 
-    // 上传按钮 → 打开文件选择
-    uploadBtn.onclick = ()=> upload.click();
-
-    // 上传并加载 EPUB (FileReader)
-    upload.addEventListener("change", function() {
-      const file = this.files[0];
       if (file) {
-        uploadArea.classList.add("hidden");
-        loading.style.display = "block";
-
-        const readerFile = new FileReader();
-        readerFile.onload = function(e) {
-          const data = e.target.result;
-          book = ePub(data);
-          rendition = book.renderTo("reader", {
-            width: "100%",
-            height: "100%"
-          });
-
-          // 只显示第一页 → 文字优先加载
-          rendition.display().then(()=>{
-            loading.style.display = "none";
-            applySettings();
-            enableLazyImages(); // 图片懒加载
-          }).catch(err=>{
-            loadingText.innerHTML = "❌ 加载失败，请检查文件";
-            console.error(err);
-          });
-        };
-        readerFile.readAsArrayBuffer(file);
+        let ext = file.name.split('.').pop().toLowerCase();
+        if (ext === "txt") text = await readTxt(file);
+        if (ext === "pdf") text = await readPdf(file);
+        if (ext === "docx") text = await readDocx(file);
+        if (ext === "epub") text = await readEpub(file);
       }
-    });
 
-    // 删除书籍
-    document.getElementById("deleteBook").onclick = ()=> location.reload();
-    // 更换书籍
-    document.getElementById("changeBook").onclick = ()=> upload.click();
-
-    // 悬浮按钮点击 → 切换设置面板
-    const btn = document.getElementById("floating-btn");
-    const panel = document.getElementById("settings-panel");
-    btn.onclick = ()=> panel.style.display = (panel.style.display==='none'?'block':'none');
-
-    // 悬浮按钮拖动
-    let isDragging = false, offsetX, offsetY;
-    btn.onmousedown = e => { isDragging = true; offsetX = e.offsetX; offsetY = e.offsetY; }
-    document.onmousemove = e => { 
-      if(isDragging){
-        btn.style.left = (e.pageX-offsetX)+"px";
-        btn.style.top = (e.pageY-offsetY)+"px";
-        btn.style.bottom = ""; btn.style.right = "";
+      if (!text) {
+        alert("请输入文本或上传文件");
+        return;
       }
-    }
-    document.onmouseup = ()=> isDragging=false;
 
-    // 设置：亮度
-    document.getElementById("brightness").oninput = function(){
-      document.body.style.filter = `brightness(${this.value}%)`;
-      saveSetting("brightness", this.value);
-    }
+      let paragraphs = text.split(/\n+/);
+      let outputDiv = document.getElementById("output");
+      outputDiv.innerHTML = "";
 
-    // 设置：字体大小
-    function changeFontSize(delta){ 
-      if(rendition){
-        let size = parseInt(localStorage.getItem("fontSize")||"16");
-        size = Math.max(12, size+delta);
-        rendition.themes.fontSize(size+"px");
-        saveSetting("fontSize", size);
+      for (let p of paragraphs) {
+        if (!p.trim()) continue;
+        let block = document.createElement("div");
+        block.className = "block";
+        block.innerHTML = `<div class="orig">${p}</div><div class="trans">翻译中...</div>`;
+        outputDiv.appendChild(block);
+
+        let translation = await translateParagraph(p);
+        block.querySelector(".trans").innerText = translation;
       }
     }
 
-    // 设置：背景模式
-    document.getElementById("theme").onchange=function(){
-      if(rendition){
-        let theme=this.value;
-        if(theme==="dark"){
-          rendition.themes.override("color", "#eee");
-          rendition.themes.override("background", "#111");
-        } else if(theme==="sepia"){
-          rendition.themes.override("color", "#333");
-          rendition.themes.override("background", "#f4ecd8");
-        } else {
-          rendition.themes.override("color", "#000");
-          rendition.themes.override("background", "#fff");
-        }
-        saveSetting("theme", theme);
-      }
+    // 🔹 读取 TXT
+    function readTxt(file) {
+      return new Promise((resolve) => {
+        let reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsText(file);
+      });
     }
 
-    // 设置：行距
-    document.getElementById("lineHeight").onchange=function(){
-      if(rendition){
-        rendition.themes.override("line-height", this.value);
-        saveSetting("lineHeight", this.value);
+    // 🔹 读取 PDF
+    async function readPdf(file) {
+      let arrayBuffer = await file.arrayBuffer();
+      let pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+      let text = "";
+      for (let i = 1; i <= pdf.numPages; i++) {
+        let page = await pdf.getPage(i);
+        let content = await page.getTextContent();
+        let strings = content.items.map(item => item.str).join(" ");
+        text += strings + "\n\n";
       }
+      return text;
     }
 
-    // 保存设置
-    function saveSetting(key, value){ localStorage.setItem(key, value); }
-
-    // 应用设置
-    function applySettings(){
-      if(!rendition) return;
-      const brightness = localStorage.getItem("brightness")||100;
-      document.body.style.filter = `brightness(${brightness}%)`;
-      document.getElementById("brightness").value = brightness;
-
-      const fontSize = localStorage.getItem("fontSize")||16;
-      rendition.themes.fontSize(fontSize+"px");
-
-      const theme = localStorage.getItem("theme")||"light";
-      document.getElementById("theme").value = theme;
-      if(theme==="dark"){
-        rendition.themes.override("color", "#eee");
-        rendition.themes.override("background", "#111");
-      } else if(theme==="sepia"){
-        rendition.themes.override("color", "#333");
-        rendition.themes.override("background", "#f4ecd8");
-      } else {
-        rendition.themes.override("color", "#000");
-        rendition.themes.override("background", "#fff");
-      }
-
-      const lineHeight = localStorage.getItem("lineHeight")||"1.6";
-      document.getElementById("lineHeight").value=lineHeight;
-      rendition.themes.override("line-height", lineHeight);
+    // 🔹 读取 Word
+    async function readDocx(file) {
+      let arrayBuffer = await file.arrayBuffer();
+      let result = await mammoth.extractRawText({arrayBuffer: arrayBuffer});
+      return result.value;
     }
 
-    // 图片懒加载：文字先显示，图片滚动到时加载
-    function enableLazyImages() {
-      rendition.on("rendered", (section) => {
-        const doc = section.document;
-        const imgs = doc.querySelectorAll("img");
-        if (!imgs.length) return;
-        const observer = new IntersectionObserver((entries) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              const target = entry.target;
-              const src = target.getAttribute("data-src");
-              if (src) target.setAttribute("src", src);
-              observer.unobserve(target);
-            }
-          });
-        });
-        imgs.forEach(img => {
-          const src = img.getAttribute("src");
-          if (src) {
-            img.setAttribute("data-src", src);
-            img.removeAttribute("src");
-            img.setAttribute("loading", "lazy");
-            observer.observe(img);
-          }
+    // 🔹 读取 EPUB
+    async function readEpub(file) {
+      return new Promise((resolve) => {
+        let book = ePub(file);
+        let text = "";
+        book.loaded.spine.then(spine => {
+          let promises = spine.each(chapter => chapter.load().then(res => {
+            text += res.innerText + "\n\n";
+          }));
+          Promise.all(promises).then(() => resolve(text));
         });
       });
     }
